@@ -178,11 +178,7 @@ func Test_generateCode(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := generateCode(tt.args.packageName, tt.args.importPath, tt.args.queries)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("generateCode() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
+			got := generateCode(tt.args.packageName, tt.args.importPath, tt.args.queries)
 			if !reflect.DeepEqual(string(got), tt.want) {
 				t.Errorf("generateCode() = %v, want %v", string(got), tt.want)
 			}

@@ -14,10 +14,9 @@ import (
 	"strings"
 
 	"golang.org/x/tools/go/loader"
-	"golang.org/x/tools/imports"
 )
 
-const importPath = "github.com/hexdigest/prep"
+const importPath = "github.com/Melsoft-Games/prep"
 
 type (
 	queryFinder struct {
@@ -81,14 +80,7 @@ func main() {
 
 	queries := uniqueStrings(finder.queries)
 
-	if len(queries) == 0 {
-		log.Fatalf("prep: no SQL queries found")
-	}
-
-	code, err := generateCode(pkg.Pkg.Name(), *sourcePackage, queries)
-	if err != nil {
-		log.Fatalf("prep: failed to generate code: %v", err)
-	}
+	code := generateCode(pkg.Pkg.Name(), *sourcePackage, queries)
 
 	file, err := os.Create(outputFileName)
 	if err != nil {
@@ -110,19 +102,22 @@ func getPathToPackage(importPath string) (string, error) {
 	return filepath.Join(p.SrcRoot, p.ImportPath), nil
 }
 
-func generateCode(packageName, importPath string, queries []string) ([]byte, error) {
+func generateCode(packageName, importPath string, queries []string) []byte {
 	buf := bytes.NewBuffer([]byte{})
 
-	fmt.Fprintf(buf,
-		"//go:generate prep -f %s\n\npackage %s\n\nvar prepStatements = []string{\n%s,\n}",
-		importPath, packageName, strings.Join(queries, ",\n"))
+	if len(queries) == 0 {
+		fmt.Fprintf(buf,
+			"//go:generate prep -f %s\n\npackage %s\n\nfunc init() {\n\tprepStatements = []string{}\n}",
+			importPath, packageName)
 
-	formatted, err := imports.Process("", buf.Bytes(), nil)
-	if err != nil {
-		return formatted, fmt.Errorf("failed to format code %s: %v", buf.Bytes(), err)
+		return buf.Bytes()
 	}
 
-	return formatted, nil
+	fmt.Fprintf(buf,
+		"//go:generate prep -f %s\n\npackage %s\n\nfunc init() {\n\tprepStatements = []string{\n\t\t%s,\n\t}\n}",
+		importPath, packageName, strings.Join(queries, ",\n\t\t"))
+
+	return buf.Bytes()
 }
 
 // uniqueStrings returns a sorted slice of the unique strings
@@ -150,10 +145,10 @@ var methodImplements = map[string]string{
 	"Query":    "querier",
 	"QueryRow": "rowQuerier",
 
-	"PrepareContext":  "preparerWithContext",
-	"ExecContext":     "executerWithContext",
-	"QueryContext":    "querierWithContext",
-	"QueryRowContext": "rowQuerierWithContext",
+	//"PrepareContext":  "preparerWithContext",
+	//"ExecContext":     "executerWithContext",
+	//"QueryContext":    "querierWithContext",
+	//"QueryRowContext": "rowQuerierWithContext",
 }
 
 // Visit implements ast.Visitor interface
@@ -179,9 +174,9 @@ func (f *queryFinder) Visit(node ast.Node) ast.Visitor {
 
 	var query string
 	switch selector.Sel.Name {
-	case "Prepare", "Exec", "Query", "QueryRow":
+	case "Prepare":
 		query = f.processQuery(fCall.Args[0])
-	case "PrepareContext", "ExecContext", "QueryContext", "QueryRowContext":
+	case "Exec", "Query", "QueryRow":
 		query = f.processQuery(fCall.Args[1])
 	}
 

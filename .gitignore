@@ -1,2 +1,4 @@
+.idea
+
 /cmd/prep/prep
 /prepared_statements.go
