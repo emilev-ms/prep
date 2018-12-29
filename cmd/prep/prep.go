@@ -140,15 +140,20 @@ func uniqueStrings(strings []string) []string {
 
 // maps method name to the interface it implements
 var methodImplements = map[string]string{
-	"Prepare":  "preparer",
-	"Exec":     "executer",
-	"Query":    "querier",
-	"QueryRow": "rowQuerier",
+	//"Prepare":  "preparer",
+	//"Exec":     "executer",
+	//"Query":    "querier",
+	//"QueryRow": "rowQuerier",
 
-	//"PrepareContext":  "preparerWithContext",
-	//"ExecContext":     "executerWithContext",
-	//"QueryContext":    "querierWithContext",
-	//"QueryRowContext": "rowQuerierWithContext",
+	"ExecContext":         "ExecContext",
+	"QueryContext":        "QueryContext",
+	"QueryRowContext":     "QueryRowContext",
+	"NamedExecContext":    "NamedExecContext",
+	"GetContext":          "GetContext",
+	"SelectContext":       "SelectContext",
+	"NamedQueryContext":   "NamedQueryContext",
+	"PrepareContext":      "PrepareContext",
+	"PrepareNamedContext": "PrepareNamedContext",
 }
 
 // Visit implements ast.Visitor interface
@@ -174,10 +179,10 @@ func (f *queryFinder) Visit(node ast.Node) ast.Visitor {
 
 	var query string
 	switch selector.Sel.Name {
-	case "Prepare":
-		query = f.processQuery(fCall.Args[0])
-	case "Exec", "Query", "QueryRow":
+	case "ExecContext", "QueryContext", "QueryRowContext", "NamedExecContext", "NamedQueryContext", "PrepareContext", "PrepareNamedContext":
 		query = f.processQuery(fCall.Args[1])
+	case "GetContext", "SelectContext":
+		query = f.processQuery(fCall.Args[2])
 	}
 
 	if query != "" {
