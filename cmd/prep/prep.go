@@ -173,9 +173,9 @@ func (f *queryFinder) Visit(node ast.Node) ast.Visitor {
 		return f
 	}
 
-	if !types.Implements(f.packageInfo.TypeOf(selector.X), f.prepInterfaces[interfaceName]) {
-		return nil
-	}
+	//if !types.Implements(f.packageInfo.TypeOf(selector.X), f.prepInterfaces[interfaceName]) {
+	//	return nil
+	//}
 
 	var query string
 	switch selector.Sel.Name {
