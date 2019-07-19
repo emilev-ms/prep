@@ -16,7 +16,7 @@ import (
 	"golang.org/x/tools/go/loader"
 )
 
-const importPath = "github.com/Melsoft-Games/prep"
+const importPath = "gizmo/vendor/github.com/Melsoft-Games/prep"
 
 type (
 	queryFinder struct {
