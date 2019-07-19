@@ -16,7 +16,10 @@ import (
 	"golang.org/x/tools/go/loader"
 )
 
-const importPath = "gizmo/vendor/github.com/Melsoft-Games/prep"
+const (
+	importPath = "gizmo/vendor/github.com/Melsoft-Games/prep"
+	importPath2 = "github.com/Melsoft-Games/prep"
+)
 
 type (
 	queryFinder struct {
@@ -55,16 +58,22 @@ func main() {
 	}
 
 	conf.Import(importPath)
+	conf.Import(importPath2)
 
 	prog, err := conf.Load()
 	if err != nil {
 		log.Fatalf("prep: failed to load package: %v\n", err)
 	}
 
+	var basePkg = prog.Package(importPath)
+	if basePkg == nil {
+		basePkg = prog.Package(importPath2)
+	}
+
 	pkg := prog.Package(*sourcePackage)
 	finder := &queryFinder{
 		packageInfo:    &pkg.Info,
-		prepInterfaces: findInterfaces(prog.Package(importPath)),
+		prepInterfaces: findInterfaces(basePkg),
 	}
 
 	for _, file := range pkg.Files {
