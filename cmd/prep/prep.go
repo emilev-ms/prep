@@ -16,22 +16,16 @@ import (
 	"golang.org/x/tools/go/loader"
 )
 
-const (
-	importPath = "github.com/Melsoft-Games/prep"
-)
-
 type (
 	queryFinder struct {
-		packageInfo    *types.Info
-		prepInterfaces map[string]*types.Interface
-		queries        []string
+		packageInfo *types.Info
+		queries     []string
 	}
 )
 
 func main() {
 	var (
 		sourcePackage = flag.String("f", "", "source package import path, i.e. github.com/my/package")
-		withTests     = flag.Bool("t", false, "parse test files")
 	)
 	flag.Parse()
 
@@ -42,32 +36,25 @@ func main() {
 
 	conf := loader.Config{
 		TypeChecker: types.Config{
-			FakeImportC:              true,
+			FakeImportC:              false,
 			DisableUnusedImportCheck: true,
+			Error:                    func(err error) {},
 		},
 		TypeCheckFuncBodies: func(path string) bool {
 			return strings.HasPrefix(path, *sourcePackage)
 		},
 	}
 
-	if *withTests {
-		conf.ImportWithTests(*sourcePackage)
-	} else {
-		conf.Import(*sourcePackage)
-	}
-
-	conf.Import(importPath)
+	conf.Import(*sourcePackage)
 
 	prog, err := conf.Load()
 	if err != nil {
 		log.Fatalf("prep: failed to load package: %v\n", err)
 	}
-
-	var basePkg = prog.Package(importPath)
 	pkg := prog.Package(*sourcePackage)
+
 	finder := &queryFinder{
-		packageInfo:    &pkg.Info,
-		prepInterfaces: findInterfaces(basePkg),
+		packageInfo: &pkg.Info,
 	}
 
 	for _, file := range pkg.Files {
@@ -83,8 +70,11 @@ func main() {
 
 	queries := uniqueStrings(finder.queries)
 
-	code := generateCode(pkg.Pkg.Name(), *sourcePackage, queries)
+	if len(queries) == 0 {
+		log.Fatalf("prep: no SQL queries found")
+	}
 
+	code := generateCode(pkg.Pkg.Name(), *sourcePackage, queries)
 	file, err := os.Create(outputFileName)
 	if err != nil {
 		log.Fatalf("prep: failed to create file: %v", err)
@@ -119,7 +109,6 @@ func generateCode(packageName, importPath string, queries []string) []byte {
 	fmt.Fprintf(buf,
 		"//go:generate prep -f %s\n\npackage %s\n\nfunc init() {\n\tprepStatements = []string{\n\t\t%s,\n\t}\n}",
 		importPath, packageName, strings.Join(queries, ",\n\t\t"))
-
 	return buf.Bytes()
 }
 
@@ -131,8 +120,7 @@ func uniqueStrings(strings []string) []string {
 		m[s] = struct{}{}
 	}
 
-	unique := []string{}
-
+	var unique []string
 	for s := range m {
 		unique = append(unique, s)
 	}
@@ -143,11 +131,6 @@ func uniqueStrings(strings []string) []string {
 
 // maps method name to the interface it implements
 var methodImplements = map[string]string{
-	//"Prepare":  "preparer",
-	//"Exec":     "executer",
-	//"Query":    "querier",
-	//"QueryRow": "rowQuerier",
-
 	"ExecContext":         "ExecContext",
 	"QueryContext":        "QueryContext",
 	"QueryRowContext":     "QueryRowContext",
@@ -175,10 +158,6 @@ func (f *queryFinder) Visit(node ast.Node) ast.Visitor {
 	if interfaceName == "" {
 		return f
 	}
-
-	//if !types.Implements(f.packageInfo.TypeOf(selector.X), f.prepInterfaces[interfaceName]) {
-	//	return nil
-	//}
 
 	var query string
 	switch selector.Sel.Name {
