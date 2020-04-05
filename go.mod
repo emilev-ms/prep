@@ -1,4 +1,4 @@
-module gizmo/prep
+module github.com/Melsoft-Games/prep
 
 go 1.14
 
