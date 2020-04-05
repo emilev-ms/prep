@@ -17,8 +17,7 @@ import (
 )
 
 const (
-	importPath = "gizmo/vendor/github.com/Melsoft-Games/prep"
-	importPath2 = "github.com/Melsoft-Games/prep"
+	importPath = "github.com/Melsoft-Games/prep"
 )
 
 type (
@@ -58,7 +57,6 @@ func main() {
 	}
 
 	conf.Import(importPath)
-	conf.Import(importPath2)
 
 	prog, err := conf.Load()
 	if err != nil {
@@ -66,10 +64,6 @@ func main() {
 	}
 
 	var basePkg = prog.Package(importPath)
-	if basePkg == nil {
-		basePkg = prog.Package(importPath2)
-	}
-
 	pkg := prog.Package(*sourcePackage)
 	finder := &queryFinder{
 		packageInfo:    &pkg.Info,
