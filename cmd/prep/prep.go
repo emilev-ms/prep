@@ -36,13 +36,13 @@ func main() {
 
 	conf := loader.Config{
 		TypeChecker: types.Config{
-			FakeImportC:              false,
+			FakeImportC:              true,
 			DisableUnusedImportCheck: true,
-			Error:                    func(err error) {},
 		},
 		TypeCheckFuncBodies: func(path string) bool {
 			return strings.HasPrefix(path, *sourcePackage)
 		},
+		AllowErrors: true,
 	}
 
 	conf.Import(*sourcePackage)
