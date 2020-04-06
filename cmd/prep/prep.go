@@ -59,6 +59,9 @@ func main() {
 
 	for k, v := range sourcePackage.TypesInfo.Defs {
 		if constant, ok := v.(*types.Const); ok {
+			if _, ok = finder.packageInfo[k.Name]; ok {
+				log.Fatalf("constant already defined, need unique name for %v", k.Name)
+			}
 			finder.packageInfo[k.Name] = constant.Val().ExactString()
 		}
 	}
