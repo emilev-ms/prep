@@ -2,10 +2,13 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"flag"
 	"fmt"
 	"go/ast"
 	"go/build"
+	"go/parser"
+	"go/token"
 	"go/types"
 	"log"
 	"os"
@@ -13,55 +16,58 @@ import (
 	"sort"
 	"strings"
 
-	"golang.org/x/tools/go/loader"
+	"golang.org/x/tools/go/packages"
 )
 
 type (
 	queryFinder struct {
-		packageInfo *types.Info
+		packageInfo map[string]string
 		queries     []string
 	}
 )
 
 func main() {
 	var (
-		sourcePackage = flag.String("f", "", "source package import path, i.e. github.com/my/package")
+		sourcePackageName = flag.String("f", "", "source package import path, i.e. github.com/my/package")
 	)
 	flag.Parse()
 
-	if *sourcePackage == "" {
+	if *sourcePackageName == "" {
 		flag.PrintDefaults()
 		return
 	}
 
-	conf := loader.Config{
-		TypeChecker: types.Config{
-			FakeImportC:              true,
-			DisableUnusedImportCheck: true,
-		},
-		TypeCheckFuncBodies: func(path string) bool {
-			return strings.HasPrefix(path, *sourcePackage)
-		},
-		AllowErrors: true,
+	var (
+		sourcePackage *packages.Package
+		astPackage    *ast.Package
+		fs            *token.FileSet
+		err           error
+	)
+
+	if sourcePackage, err = Load(*sourcePackageName); err != nil {
+		log.Fatalf("prep: %v", err)
 	}
 
-	conf.Import(*sourcePackage)
-
-	prog, err := conf.Load()
-	if err != nil {
-		log.Fatalf("prep: failed to load package: %v\n", err)
+	fs = token.NewFileSet()
+	if astPackage, err = AST(fs, sourcePackage); err != nil {
+		log.Fatalf("failed to load package sources: %v", err)
 	}
-	pkg := prog.Package(*sourcePackage)
 
 	finder := &queryFinder{
-		packageInfo: &pkg.Info,
+		packageInfo: map[string]string{},
 	}
 
-	for _, file := range pkg.Files {
+	for k, v := range sourcePackage.TypesInfo.Defs {
+		if constant, ok := v.(*types.Const); ok {
+			finder.packageInfo[k.Name] = constant.Val().ExactString()
+		}
+	}
+
+	for _, file := range astPackage.Files {
 		ast.Walk(finder, file)
 	}
 
-	path, err := getPathToPackage(*sourcePackage)
+	path, err := getPathToPackage(*sourcePackageName)
 	if err != nil {
 		log.Fatalf("prep: %v", err)
 	}
@@ -69,12 +75,7 @@ func main() {
 	outputFileName := filepath.Join(path, "prepared_statements.go")
 
 	queries := uniqueStrings(finder.queries)
-
-	if len(queries) == 0 {
-		log.Fatalf("prep: no SQL queries found")
-	}
-
-	code := generateCode(pkg.Pkg.Name(), *sourcePackage, queries)
+	code := generateCode(astPackage.Name, *sourcePackageName, queries)
 	file, err := os.Create(outputFileName)
 	if err != nil {
 		log.Fatalf("prep: failed to create file: %v", err)
@@ -182,12 +183,54 @@ func (f *queryFinder) processQuery(queryArg ast.Expr) string {
 	case *ast.BasicLit:
 		return q.Value
 	case *ast.Ident:
-		obj := f.packageInfo.ObjectOf(q)
+		return f.packageInfo[q.Name]
+	}
+	return ""
+}
 
-		if constant, ok := obj.(*types.Const); ok {
-			return constant.Val().ExactString()
-		}
+var errPackageNotFound = errors.New("package not found")
+
+// Load loads package by its import path
+func Load(path string) (*packages.Package, error) {
+	cfg := &packages.Config{Mode: packages.LoadSyntax}
+	pkgs, err := packages.Load(cfg, path)
+	if err != nil {
+		return nil, err
 	}
 
-	return ""
+	if len(pkgs) < 1 {
+		return nil, errPackageNotFound
+	}
+
+	if len(pkgs[0].Errors) > 0 {
+		return nil, pkgs[0].Errors[0]
+	}
+
+	return pkgs[0], nil
+}
+
+// AST returns package's abstract syntax tree
+func AST(fs *token.FileSet, p *packages.Package) (*ast.Package, error) {
+	dir := Dir(p)
+
+	pkgs, err := parser.ParseDir(fs, dir, nil, parser.DeclarationErrors)
+	if err != nil {
+		return nil, err
+	}
+
+	if ap, ok := pkgs[p.Name]; ok {
+		return ap, nil
+	}
+
+	return &ast.Package{Name: p.Name}, nil
+}
+
+// Dir returns absolute path of the package in a filesystem
+func Dir(p *packages.Package) string {
+	files := append(p.GoFiles, p.OtherFiles...)
+	if len(files) < 1 {
+		return p.PkgPath
+	}
+
+	return filepath.Dir(files[0])
 }
